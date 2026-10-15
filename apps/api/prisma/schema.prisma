@@ -1,0 +1,234 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Business {
+  id               String           @id @default(uuid())
+  name             String
+  email            String           @unique
+  passwordHash     String
+  city             String?
+  area             String?
+  address          String?
+  pinCode          String?
+  latitude         Float?
+  longitude        Float?
+  referralCode     String           @default("")
+  parentBusinessId String           @default("") // Supports multi-location
+  createdAt        DateTime         @default(now())
+  shifts           Shift[]
+  templates        ShiftTemplate[]
+  favorites        FavoriteWorker[]
+}
+
+model Worker {
+  id               String                @id @default(uuid())
+  name             String
+  email            String                @unique
+  passwordHash     String
+  skills           String 
+  hourlyRateMin    Float
+  hourlyRateMax    Float
+  preferredWorkAreas String             @default("[]")
+  maxTravelDistance  Float              @default(20.0)
+  latitude         Float?
+  longitude        Float?
+  isAvailable      Boolean               @default(true)
+  reliabilityScore Float                 @default(100.0)
+  verifiedBadges   String                @default("[]") 
+  availabilitySlots String               @default("[]") 
+  achievements     String                @default("[]") 
+  referralCode     String                @default("")
+  referredById     String                @default("")
+  xp               Int                   @default(0) // Gamification
+  level            Int                   @default(1) // Gamification
+  createdAt        DateTime              @default(now())
+  shifts           Shift[]               @relation("WorkerShifts")
+  claimLogs        ShiftClaimLog[]
+  noShowFlags      NoShowFlag[]
+  scoreLogs        ReliabilityScoreLog[]
+  favoritedBy      FavoriteWorker[]
+}
+
+model Shift {
+  id                       String          @id @default(uuid())
+  businessId               String
+  business                 Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  role                     String
+  requiredSkills           String          @default("[]") 
+  startTime                DateTime
+  endTime                  DateTime
+  payRate                  Float
+  radius                   Float           @default(10.0)
+  city                     String?
+  area                     String?
+  address                  String?
+  pinCode                  String?
+  latitude                 Float?
+  longitude                Float?
+  status                   String          @default("open") 
+  claimedByWorkerId        String?
+  claimedByWorker          Worker?         @relation("WorkerShifts", fields: [claimedByWorkerId], references: [id], onDelete: SetNull)
+  claimedAt                DateTime?
+  urgencyLevel             String          @default("normal")
+  predictedFillProbability Float           @default(0.5)
+  createdAt                DateTime        @default(now())
+
+  claimLogs   ShiftClaimLog[]
+  forwards    ShiftForward[]  @relation("OriginalShift")
+  ratings     Rating[]
+  payments    Payment[]
+  noShowFlags NoShowFlag[]
+
+  @@index([status, startTime])
+}
+
+model ShiftTemplate {
+  id             String   @id @default(uuid())
+  businessId     String
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name           String
+  role           String
+  requiredSkills String   @default("[]")
+  payRate        Float
+  urgencyLevel   String   @default("normal")
+  createdAt      DateTime @default(now())
+}
+
+model FavoriteWorker {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workerId   String
+  worker     Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, workerId])
+}
+
+model FraudFlag {
+  id         String   @id @default(uuid())
+  targetId   String
+  targetType String   
+  reason     String
+  severity   String   
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Waitlist {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      String   
+  createdAt DateTime @default(now())
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  category  String   
+  votes     Int      @default(0)
+  createdAt DateTime @default(now())
+  votesList Vote[]
+}
+
+model Vote {
+  id         String   @id @default(uuid())
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  userId     String
+  createdAt  DateTime @default(now())
+  @@unique([feedbackId, userId])
+}
+
+model RoadmapItem {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  status      String   // "backlog" | "in_progress" | "released"
+  createdAt   DateTime @default(now())
+}
+
+model Changelog {
+  id          String   @id @default(uuid())
+  version     String
+  title       String
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model ShiftClaimLog {
+  id          String   @id @default(uuid())
+  shiftId     String
+  shift       Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  workerId    String
+  worker      Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  attemptedAt DateTime @default(now())
+  result      String
+}
+
+model ShiftForward {
+  id              String   @id @default(uuid())
+  originalShiftId String
+  originalShift   Shift    @relation("OriginalShift", fields: [originalShiftId], references: [id], onDelete: Cascade)
+  fromWorkerId    String
+  toWorkerId      String
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+}
+
+model Rating {
+  id            String   @id @default(uuid())
+  shiftId       String
+  shift         Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  ratedByUserId String
+  ratedUserId   String
+  score         Float
+  comment       String?
+  createdAt     DateTime @default(now())
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  shiftId         String
+  shift           Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  amount          Float
+  platformFee     Float
+  status          String   @default("pending")
+  stripePaymentId String?
+  createdAt       DateTime @default(now())
+}
+
+model NoShowFlag {
+  id        String   @id @default(uuid())
+  shiftId   String
+  shift     Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  workerId  String
+  worker    Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  riskScore Float
+  flaggedAt DateTime @default(now())
+}
+
+model ReliabilityScoreLog {
+  id        String   @id @default(uuid())
+  workerId  String
+  worker    Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  score     Float
+  change    Float
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

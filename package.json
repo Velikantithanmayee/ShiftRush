@@ -1,0 +1,19 @@
+{
+  "name": "shiftrush-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ShiftRush: Real-time on-demand staffing marketplace",
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "start": "npm run start --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

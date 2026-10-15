@@ -1,0 +1,30 @@
+config:
+  target: "http://localhost:5000"
+  phases:
+    - duration: 30
+      arrivalRate: 10
+      name: Warm up
+    - duration: 60
+      arrivalRate: 20
+      rampTo: 100
+      name: Ramping Claim Spikes
+  defaults:
+    headers:
+      Content-Type: "application/json"
+      x-idempotency-key: "loadtest-key-auto"
+scenarios:
+  - name: "Concurrent Worker Claims"
+    flow:
+      - post:
+          url: "/api/v1/auth/login"
+          json:
+            email: "worker1@shiftrush.test"
+            password: "password123"
+          capture:
+            json: "$.accessToken"
+            as: "token"
+      - post:
+          url: "/api/v1/shifts/test-concurrency-shift/claim"
+          headers:
+            Authorization: "Bearer {{ token }}"
+            x-idempotency-key: "loadtest-claim-{{ $uuid }}"
